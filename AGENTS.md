@@ -44,6 +44,20 @@
 - Реестр: добавлена запись `sbe-tasks` (hasView).
 - Репозиторий `Epyur/sbe-tasks` создан, инициирующий коммит запушен.
 
+## Статистика ошибок и отступлений
+
+- Инлайн-стили `.style.*`/`cssText` — **26 мест** (20 в `src/ui/tasks-view.ts`,
+  6 в `src/ui/assignee-selector.ts`). Сохранены из монолита намеренно (паттерн
+  sbe-presentations; чекбоксы AssigneeSelector — намеренное решение монолита).
+- `as unknown as` — 1 место (`tasks-view.ts:243`, граница `OfflineAction.payload`
+  → `CreateTaskPayload`). Остальные касты — необходимые граничные
+  (`unknown[]`/`unknown` из `SbeYougileApi`, `e.target as HTMLElement`);
+  избыточных `as` нет.
+- Прочих нарушений (`any`, `fetch`, bare `setTimeout`, `catch` без `unknown`,
+  инлайн-извлечение сообщений) нет.
+- Сборка и типы: `npm run build` OK (`main.js` 48KB + `styles.css`);
+  `npx tsc --noEmit` EXIT=0. Ошибок и предупреждений нет.
+
 ## Правила
 
 - `catch(e: unknown)` + `errorMessage()`; `getService()`/`requestUrl()` вместо `fetch`;
