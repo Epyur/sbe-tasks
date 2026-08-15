@@ -1,0 +1,9 @@
+{
+  "id": "sbe-tasks",
+  "name": "Задачи",
+  "version": "0.1.0",
+  "minAppVersion": "1.11.4",
+  "description": "Задачи YouGile: список, фильтры, дерево подзадач, детали с чатом, создание и редактирование.",
+  "author": "Полищук Евгений (polishchuk@tn.ru)",
+  "isDesktopOnly": true
+}

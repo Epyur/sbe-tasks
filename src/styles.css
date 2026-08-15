@@ -1,0 +1,149 @@
+/* Задачи — специфичные стили поверх дизайн-системы sbe-core (tn-*).
+ * Классы tn-task-* — перенос mailer-yougile-* из монолита yougile-tntn. */
+
+.tn-task-container {
+  padding: 12px;
+}
+
+.tn-task-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tn-task-btn {
+  cursor: pointer;
+}
+
+.tn-task-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--text-muted);
+}
+
+.tn-task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  cursor: pointer;
+}
+
+.tn-task-item:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.tn-task-title {
+  flex: 1;
+  font-size: var(--font-ui-small);
+  line-height: 1.4;
+  color: var(--text-normal);
+}
+
+.tn-task-title.completed {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.tn-task-meta {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.tn-task-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.tn-task-error {
+  padding: 12px;
+  color: var(--text-error);
+  background-color: var(--background-modifier-error);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.tn-task-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.tn-task-container select.dropdown {
+  max-width: 140px;
+  font-size: var(--font-smaller);
+}
+
+.tn-task-container input,
+.tn-task-container textarea,
+.tn-task-container select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tn-task-container label {
+  display: block;
+  margin-top: 8px;
+  margin-bottom: 4px;
+  font-weight: 600;
+  font-size: var(--font-ui-small);
+}
+
+.tn-task-fullwidth {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.tn-task-input,
+.tn-task-textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tn-task-textarea {
+  min-height: 60px;
+}
+
+.tn-task-select {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
+.tn-task-flex-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tn-task-flex-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tn-task-mt-8 {
+  margin-top: 8px;
+}
+
+.tn-task-mb-8 {
+  margin-bottom: 8px;
+}
+
+.tn-task-link {
+  color: var(--text-accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.tn-task-assignee-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
