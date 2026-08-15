@@ -35,6 +35,8 @@ export class TasksView extends ItemView {
   private detailTaskId = '';
   private createViewActive = false;
   private searchInput!: HTMLInputElement;
+  private noDeadlineOnly = false;
+  private noDeadlineCb!: HTMLInputElement;
 
   constructor(leaf: WorkspaceLeaf, plugin: SbeTasksPlugin) {
     super(leaf);
@@ -96,6 +98,16 @@ export class TasksView extends ItemView {
     this.selectStatus.createEl('option', { value: 'completed', text: 'Только завершённые' });
     this.selectStatus.value = 'active';
     this.selectStatus.addEventListener('change', () => this.renderFromCache());
+
+    this.noDeadlineCb = filtersEl.createEl('input', { attr: { type: 'checkbox' } });
+    this.noDeadlineCb.addClass('tn-task-cb');
+    const noDeadlineLabel = filtersEl.createEl('label', { cls: 'tn-task-no-deadline-filter' });
+    noDeadlineLabel.append(this.noDeadlineCb);
+    noDeadlineLabel.createSpan({ text: 'Задачи без дедлайна' });
+    this.noDeadlineCb.addEventListener('change', () => {
+      this.noDeadlineOnly = this.noDeadlineCb.checked;
+      this.renderFromCache();
+    });
 
     const headerEl = container.createDiv({ cls: 'tn-task-header' });
     const createBtn = headerEl.createEl('button', { text: '➕ Новая задача', cls: 'tn-task-btn' });
@@ -310,6 +322,10 @@ export class TasksView extends ItemView {
     if (statusFilter === 'active') tasks = tasks.filter(t => !t.completed);
     if (statusFilter === 'completed') tasks = tasks.filter(t => t.completed);
 
+    if (this.noDeadlineOnly) {
+      tasks = tasks.filter(t => !t.deadline);
+    }
+
     const query = this.searchInput?.value?.toLowerCase().trim() || '';
     if (query) {
       tasks = tasks.filter(t =>
@@ -321,68 +337,96 @@ export class TasksView extends ItemView {
       );
     }
 
-    tasks.sort((a, b) => b.timestamp - a.timestamp);
+    // Сортировка: сначала просроченные, затем по приближению к дедлайну;
+    // задачи без дедлайна — в конце (сначала старые, потом новые).
+    tasks.sort((a, b) => {
+      const aHas = a.deadline != null;
+      const bHas = b.deadline != null;
+      if (aHas && bHas) return a.deadline! - b.deadline!;
+      if (aHas) return -1;
+      if (bHas) return 1;
+      return a.timestamp - b.timestamp;
+    });
 
     if (tasks.length === 0) {
       container.createDiv({ text: 'Нет задач', cls: 'tn-task-empty' });
       return;
     }
 
-    const syncEl = container.createDiv({ cls: 'tn-task-meta', text: this.getSyncStatusText() });
+    container.createDiv({ cls: 'tn-task-meta', text: this.getSyncStatusText() });
 
     const lastSync = this.plugin.tasksDb.getLastSyncAt();
     if (lastSync > 0) {
       container.createDiv({ text: `Синхр: ${new Date(lastSync).toLocaleTimeString()} · Задач: ${tasks.length}`, cls: 'tn-task-meta' });
     }
 
-    const renderedIds = new Set<string>();
-    const renderTask = (task: CachedTask, depth: number): void => {
-      if (renderedIds.has(task.id)) return;
-      renderedIds.add(task.id);
+    const allTasks = this.plugin.tasksDb.getTasks();
+    const taskMap = new Map(allTasks.map(t => [t.id, t]));
 
-      const taskEl = container.createDiv({ cls: 'tn-task-item' });
-      if (depth > 0) taskEl.style.paddingLeft = `${12 + depth * 20}px`;
+    const openDetail = (id: string): void => {
+      this.detailTaskId = id;
+      this.detailViewActive = true;
+      void this.renderTaskDetail(id);
+    };
+
+    const renderSubtaskList = (parent: CachedTask, host: HTMLElement): void => {
+      if (!parent.subtasks || parent.subtasks.length === 0) return;
+      const list = host.createDiv({ cls: 'tn-task-subtask-list' });
+      for (const sub of parent.subtasks) {
+        const subTask = taskMap.get(sub.id);
+        const item = list.createDiv({ cls: 'tn-task-subtask-item' });
+        const indi = subTask ? this.getDeadlineIndicator(subTask) : { color: '', symbol: '' };
+        if (indi.symbol) item.createSpan({ text: indi.symbol });
+        item.createSpan({ text: sub.title || sub.id });
+        if (subTask?.completed) item.addClass('completed');
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openDetail(sub.id);
+        });
+        if (subTask) renderSubtaskList(subTask, item);
+      }
+    };
+
+    const renderCard = (task: CachedTask): void => {
+      const card = container.createDiv({ cls: 'tn-task-card' });
+      const head = card.createDiv({ cls: 'tn-task-card-head' });
+      const titleEl = head.createEl('h4', { text: task.title || 'Без названия' });
+      titleEl.addClass('tn-task-title');
+      if (task.completed) titleEl.addClass('completed');
 
       const indi = this.getDeadlineIndicator(task);
-      if (indi.color) {
-        taskEl.createSpan({ text: indi.symbol });
+      if (indi.symbol) {
+        head.createSpan({ cls: 'tn-task-deadline-chip', text: indi.symbol });
       }
-
-      const bodyEl = taskEl.createDiv({ cls: 'tn-task-body' });
-
-      const titleEl = bodyEl.createDiv({ cls: `tn-task-title${task.completed ? ' completed' : ''}` });
-      titleEl.setText(task.title || 'Без названия');
 
       const metaParts: string[] = [];
       if (task.projectTitle) metaParts.push(task.projectTitle);
       if (task.columnTitle) metaParts.push(task.columnTitle);
       if (Array.isArray(task.assigned) && task.assigned.length > 0) metaParts.push(`👤 ${task.assigned.join(', ')}`);
-      if (metaParts.length > 0) bodyEl.createDiv({ cls: 'tn-task-meta', text: metaParts.join(' → ') });
+      if (metaParts.length > 0) card.createDiv({ cls: 'tn-task-card-meta', text: metaParts.join(' → ') });
 
       if (task.deadline) {
         const dl = new Date(task.deadline);
-        bodyEl.createDiv({ cls: 'tn-task-meta', text: `📅 ${dl.toLocaleDateString()}` });
+        card.createDiv({ cls: 'tn-task-deadline-line', text: `📅 ${dl.toLocaleDateString()}` });
       }
 
-      taskEl.addEventListener('click', (e) => {
+      renderSubtaskList(task, card);
+
+      card.addEventListener('click', (e) => {
         if ((e.target as HTMLElement).tagName === 'INPUT') return;
-        this.detailTaskId = task.id;
-        this.detailViewActive = true;
-        void this.renderTaskDetail(task.id);
+        openDetail(task.id);
       });
     };
 
-    const allTasks = this.plugin.tasksDb.getTasks();
-    const taskMap = new Map(allTasks.map(t => [t.id, t]));
-    const renderTree = (ids: string[], depth: number): void => {
-      for (const id of ids) {
-        const t = taskMap.get(id);
-        if (!t) continue;
-        renderTask(t, depth);
-        if (t.subtasks && t.subtasks.length > 0) renderTree(t.subtasks.map(s => s.id), depth + 1);
-      }
-    };
-    renderTree(tasks.map(t => t.id), 0);
+    // «Основные» задачи — те, которые сами не являются чьей-то подзадачей.
+    const subtaskIds = new Set<string>();
+    for (const t of tasks) {
+      for (const s of t.subtasks) subtaskIds.add(s.id);
+    }
+    const topLevel = tasks.filter(t => !subtaskIds.has(t.id));
+    for (const t of topLevel) {
+      renderCard(t);
+    }
   }
 
   public openTaskDetail(taskId: string): void {
@@ -408,8 +452,17 @@ export class TasksView extends ItemView {
     container.createDiv({ text: 'Загрузка...', cls: 'tn-task-loading' });
 
     try {
-      const [task, subscribers, messages, status] = await Promise.all([
-        this.plugin.yougile.getTaskById(taskId),
+      let task: YouGileTaskFull;
+      try {
+        task = await this.plugin.yougile.getTaskById(taskId);
+      } catch (e: unknown) {
+        const cached = this.plugin.tasksDb.getTask(taskId);
+        if (!cached) throw e;
+        task = this.buildTaskFromCache(cached);
+        new Notice('Задачи: нет данных с сервера, показана сохранённая копия');
+      }
+
+      const [subscribers, messages, status] = await Promise.all([
         this.plugin.yougile.getTaskChatSubscribers(taskId).catch(() => []),
         this.plugin.yougile.getChatMessages(taskId).catch(() => []),
         this.plugin.yougile.getStatus().catch((): YougileStatus => ({ authenticated: false, companyId: '', login: '' })),
@@ -433,6 +486,24 @@ export class TasksView extends ItemView {
     }
   }
 
+  private buildTaskFromCache(cached: CachedTask): YouGileTaskFull {
+    return {
+      id: cached.id,
+      title: cached.title,
+      timestamp: cached.timestamp,
+      columnId: cached.columnId,
+      boardId: cached.boardId,
+      projectId: cached.projectId,
+      description: cached.description,
+      completed: cached.completed,
+      completeAt: cached.completeAt ? String(cached.completeAt) : undefined,
+      assigned: cached.assigned,
+      subtasks: cached.subtasks.map(s => s.id),
+      deadline: cached.deadline ? { deadline: cached.deadline } : undefined,
+      updatedAt: cached.updatedAt,
+    };
+  }
+
   private renderTaskDetailContent(
     container: HTMLElement,
     task: YouGileTaskFull,
@@ -443,10 +514,7 @@ export class TasksView extends ItemView {
     const titleRow = container.createDiv({ cls: 'tn-task-header' });
     titleRow.createEl('h3', { text: task.title || 'Без названия' });
 
-    const meta = container.createDiv({ cls: 'tn-task-meta' });
-    if (task.idTaskProject) meta.createEl('div', { text: `ID: ${task.idTaskProject}` });
-    if (task.idTaskCommon) meta.createEl('div', { text: `Общий ID: ${task.idTaskCommon}` });
-    if (task.type) meta.createEl('div', { text: `Тип: ${task.type}` });
+    const cached = this.plugin.tasksDb.getTask(task.id);
 
     const linkRow = container.createDiv({ cls: 'tn-task-flex-row tn-task-flex-wrap' });
     linkRow.style.gap = '8px';
@@ -460,52 +528,65 @@ export class TasksView extends ItemView {
       window.open(url, '_blank');
     });
 
-    if (task.description) {
-      container.createEl('h4', { text: 'Описание' });
-      container.createDiv({ text: stripHtml(task.description) });
-    }
+    // --- Таблица свойств задачи (аналогично таблице установленных плагинов) ---
+    const rows: Array<[string, string]> = [];
+    if (task.idTaskProject) rows.push(['ID', task.idTaskProject]);
+    if (task.idTaskCommon) rows.push(['Общий ID', task.idTaskCommon]);
+    if (task.type) rows.push(['Тип', task.type]);
+    if (cached?.projectTitle) rows.push(['Проект', cached.projectTitle]);
+    if (cached?.boardTitle) rows.push(['Доска', cached.boardTitle]);
+    if (task.columnId) rows.push(['Колонка', cached?.columnTitle || task.columnId]);
 
-    if (task.assigned && task.assigned.length > 0) {
-      container.createEl('h4', { text: 'Исполнители' });
-      container.createDiv({ text: task.assigned.map(id => this.plugin.tasksDb.getUserName(id)).join(', ') });
-    }
-
-    if (task.createdBy) {
-      container.createEl('h4', { text: 'Создатель' });
-      container.createDiv({ text: this.plugin.tasksDb.getUserName(task.createdBy) });
-    }
-
-    if (subscribers.length > 0) {
-      container.createEl('h4', { text: 'Подписчики чата' });
-      container.createDiv({ text: subscribers.map(id => this.plugin.tasksDb.getUserName(id)).join(', ') });
-    }
-
-    if (task.columnId) {
-      container.createEl('h4', { text: 'Колонка' });
-      const cached = this.plugin.tasksDb.getTask(task.id);
-      container.createDiv({ text: cached?.columnTitle || task.columnId });
-    }
-
-    container.createEl('h4', { text: 'Статус' });
     const statusParts: string[] = [];
     if (task.completed) statusParts.push('✅ Выполнена');
     else statusParts.push('❌ Не выполнена');
     if (task.archived) statusParts.push('📦 В архиве');
-    container.createDiv({ text: statusParts.join(' · ') });
+    rows.push(['Статус', statusParts.join(' · ')]);
 
+    if (task.assigned && task.assigned.length > 0) {
+      rows.push(['Исполнители', task.assigned.map(id => this.plugin.tasksDb.getUserName(id)).join(', ')]);
+    }
+    if (task.createdBy) {
+      rows.push(['Создатель', this.plugin.tasksDb.getUserName(task.createdBy)]);
+    }
+    if (subscribers.length > 0) {
+      rows.push(['Подписчики чата', subscribers.map(id => this.plugin.tasksDb.getUserName(id)).join(', ')]);
+    }
     if (task.deadline) {
-      container.createEl('h4', { text: 'Дедлайн' });
       const dl = task.deadline;
       const parts: string[] = [];
       if (dl.deadline) parts.push(`до ${new Date(dl.deadline).toLocaleString()}`);
       if (dl.startDate) parts.push(`с ${new Date(dl.startDate).toLocaleString()}`);
-      if (parts.length) container.createDiv({ text: parts.join(' ') });
+      if (parts.length) rows.push(['Дедлайн', parts.join(' ')]);
+    }
+    if (task.timeTracking) {
+      const tt = task.timeTracking;
+      rows.push(['Учёт времени', `План: ${tt.plan ?? 0}ч · Факт: ${tt.work ?? 0}ч`]);
+    }
+    if (task.color && task.color !== 'task-primary') {
+      rows.push(['Цвет', task.color]);
+    }
+    if (task.timer?.running) rows.push(['Таймер', '⏱ Таймер запущен']);
+    if (task.stopwatch?.running) rows.push(['Секундомер', '⏱ Секундомер запущен']);
+
+    if (rows.length > 0) {
+      const wrap = container.createDiv({ cls: 'tn-table-wrap' });
+      const table = wrap.createEl('table', { cls: 'tn-table' });
+      const headRow = table.createEl('thead').createEl('tr');
+      for (const th of ['Поле', 'Значение']) {
+        headRow.createEl('th', { text: th });
+      }
+      const tbody = table.createEl('tbody');
+      for (const [k, v] of rows) {
+        const row = tbody.createEl('tr');
+        row.createEl('td', { text: k });
+        row.createEl('td', { text: v });
+      }
     }
 
-    if (task.timeTracking) {
-      container.createEl('h4', { text: 'Учёт времени' });
-      const tt = task.timeTracking;
-      container.createDiv({ text: `План: ${tt.plan ?? 0}ч · Факт: ${tt.work ?? 0}ч` });
+    if (task.description) {
+      container.createEl('h4', { text: 'Описание' });
+      container.createDiv({ text: stripHtml(task.description) });
     }
 
     if (task.checklists && task.checklists.length > 0) {
@@ -551,16 +632,6 @@ export class TasksView extends ItemView {
           void this.renderTaskDetail(subId);
         });
       }
-    }
-
-    if (task.color && task.color !== 'task-primary') {
-      container.createDiv({ text: `🎨 Цвет: ${task.color}` });
-    }
-
-    if (task.timer?.running || task.stopwatch?.running) {
-      container.createEl('h4', { text: 'Таймеры' });
-      if (task.timer?.running) container.createDiv({ text: '⏱ Таймер запущен' });
-      if (task.stopwatch?.running) container.createDiv({ text: '⏱ Секундомер запущен' });
     }
 
     // --- Add info section: always visible, above buttons ---

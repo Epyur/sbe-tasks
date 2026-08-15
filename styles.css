@@ -241,6 +241,7 @@
 
 .tn-task-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
@@ -380,4 +381,107 @@
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* ---------- Карточки задач (стиль магазина: рамка + заголовок + мета) ---------- */
+.tn-task-card {
+  background: var(--tn-card);
+  border: 1px solid var(--tn-border);
+  border-radius: var(--tn-radius);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tn-task-card:hover {
+  border-color: var(--tn-brand);
+}
+
+.tn-task-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tn-task-card-head h4 {
+  margin: 0;
+  font-size: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.tn-task-card-meta {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.tn-task-deadline-line {
+  font-size: var(--font-smaller);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tn-task-deadline-chip {
+  font-size: 13px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.tn-task-subtask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  padding-left: 14px;
+  border-left: 2px solid var(--tn-border);
+}
+
+.tn-task-subtask-item {
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tn-task-subtask-item:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.tn-task-subtask-item.completed span {
+  text-decoration: line-through;
+  color: var(--text-faint);
+}
+
+.tn-task-container .tn-task-no-deadline-filter {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin: 0 0 0 4px;
+  font-weight: 400;
+}
+
+.tn-task-container .tn-task-no-deadline-filter input[type='checkbox'] {
+  appearance: auto;
+  -webkit-appearance: auto;
+  margin: 0;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
 }

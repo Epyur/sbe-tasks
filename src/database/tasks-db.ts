@@ -363,6 +363,26 @@ export class TasksDatabase {
         }
       }
 
+      // Каскадная чистка «сирот»: подзадачи без колонки, чей родитель не сохранён.
+      let pruned = true;
+      while (pruned) {
+        pruned = false;
+        const referenced = new Set<string>();
+        for (const t of mergedTasks) {
+          for (const s of t.subtasks) referenced.add(s.id);
+        }
+        const kept: CachedTask[] = [];
+        for (const t of mergedTasks) {
+          if (!t.columnId && !referenced.has(t.id)) {
+            pruned = true;
+            continue;
+          }
+          kept.push(t);
+        }
+        mergedTasks.length = 0;
+        for (const t of kept) mergedTasks.push(t);
+      }
+
       this.data.tasks = mergedTasks;
       this.data.lastSyncAt = now;
 
