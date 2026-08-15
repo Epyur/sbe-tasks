@@ -1,6 +1,6 @@
 {
   "name": "sbe-tasks",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Задачи YouGile: список, фильтры, дерево, детали с чатом, создание и редактирование",
   "main": "main.js",
   "scripts": {

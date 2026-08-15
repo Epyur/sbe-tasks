@@ -34,8 +34,13 @@ export default class SbeTasksPlugin extends Plugin {
 
     // Точка входа — магазин: «Установленные → Открыть». Собственных риббона/команды нет.
     publishService<SbeTasksApi>('sbe-tasks', {
-      open: async () => {
+      open: async (taskId?: string) => {
         await this.activateView();
+        if (taskId) {
+          const leaves = this.app.workspace.getLeavesOfType(SBE_TASKS_VIEW_TYPE);
+          const view = leaves[0]?.view;
+          if (view instanceof TasksView) view.openTaskDetail(taskId);
+        }
       },
     }, {
       version: this.manifest.version,

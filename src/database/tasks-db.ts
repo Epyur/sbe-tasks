@@ -11,6 +11,7 @@ import type {
 import type { YouGileTask, YouGileTaskFull, YouGileUser } from '../types/yougile';
 import type SbeTasksPlugin from '../main';
 import { errorMessage } from '../../../sbe-core/src/utils/errors';
+import { getService } from '../../../sbe-core/src/bridge';
 
 const DATA_FILE = 'yourbase/sbe_tasks/tasks_cache.json';
 
@@ -387,8 +388,77 @@ export class TasksDatabase {
       this.data.lastSyncAt = now;
 
       await this.save();
+
+      await this.pushEventsToCalendar(existingMap, mergedTasks);
     } catch (e: unknown) {
       console.warn('Задачи: ошибка синхронизации —', errorMessage(e));
+    }
+  }
+
+  /**
+   * Передаёт в календарь (sbe-calendar) инкрементальные изменения задач.
+   * Только задачи с дедлайном; «Тип события» = название проекта. Если календарь
+   * не установлен/недоступен — тихо пропускаем (синк не падает).
+   */
+  private async pushEventsToCalendar(
+    existingMap: Map<string, CachedTask>,
+    mergedTasks: CachedTask[],
+  ): Promise<void> {
+    let calendar;
+    try {
+      calendar = await getService('sbe-calendar');
+    } catch {
+      return;
+    }
+
+    const toEvent = (t: CachedTask) => ({
+      id: t.id,
+      title: t.title,
+      start: t.deadline as number,
+      status: (t.completed ? 'completed' : 'active') as 'completed' | 'active',
+      type: t.projectTitle || 'Без проекта',
+    });
+
+    try {
+      const sources = calendar.getSources();
+      if (!sources.includes('sbe-tasks')) {
+        const snapshot = mergedTasks.filter(t => t.deadline).map(toEvent);
+        if (snapshot.length > 0) await calendar.upsert('sbe-tasks', snapshot);
+        return;
+      }
+    } catch {
+      // календарь недоступен — пропускаем, синк не падает
+      return;
+    }
+
+    const upsert: Array<ReturnType<typeof toEvent>> = [];
+    const remove: string[] = [];
+
+    const newById = new Map(mergedTasks.map(t => [t.id, t]));
+
+    for (const t of mergedTasks) {
+      if (!t.deadline) continue;
+      const prev = existingMap.get(t.id);
+      if (!prev || !prev.deadline || prev.deadline !== t.deadline
+        || prev.title !== t.title || prev.completed !== t.completed
+        || prev.projectTitle !== t.projectTitle) {
+        upsert.push(toEvent(t));
+      }
+    }
+
+    for (const t of existingMap.values()) {
+      if (!t.deadline) continue;
+      const nowTask = newById.get(t.id);
+      if (!nowTask || !nowTask.deadline) {
+        remove.push(t.id);
+      }
+    }
+
+    try {
+      if (upsert.length > 0) await calendar.upsert('sbe-tasks', upsert);
+      if (remove.length > 0) await calendar.remove('sbe-tasks', remove);
+    } catch {
+      // календарь недоступен — пропускаем, синк не падает
     }
   }
 
