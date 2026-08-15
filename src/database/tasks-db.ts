@@ -32,10 +32,22 @@ export class TasksDatabase {
   };
   private initialized = false;
   private userMap = new Map<string, string>();
+  private dirReady = false;
 
   constructor(app: App, plugin: SbeTasksPlugin) {
     this.app = app;
     this.plugin = plugin;
+  }
+
+  /** Гарантирует существование папки кэша (adapter.write не создаёт промежуточные каталоги). */
+  private async ensureDataDir(): Promise<void> {
+    if (this.dirReady) return;
+    const adapter = this.app.vault.adapter;
+    const dir = DATA_FILE.split('/').slice(0, -1).join('/');
+    if (!(await adapter.exists(dir))) {
+      await adapter.mkdir(dir);
+    }
+    this.dirReady = true;
   }
 
   async init(): Promise<void> {
@@ -69,6 +81,7 @@ export class TasksDatabase {
   private async save(): Promise<void> {
     if (!this.initialized) return;
     try {
+      await this.ensureDataDir();
       await this.app.vault.adapter.write(DATA_FILE, JSON.stringify(this.data, null, 2));
     } catch (e: unknown) {
       console.error('Задачи: не удалось сохранить кэш:', errorMessage(e));

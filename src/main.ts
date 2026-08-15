@@ -58,15 +58,13 @@ export default class SbeTasksPlugin extends Plugin {
 
   async activateView(): Promise<void> {
     const { workspace } = this.app;
-    let leaf = workspace.getLeavesOfType(SBE_TASKS_VIEW_TYPE)[0];
-    if (!leaf) {
-      leaf = workspace.getLeaf(false);
-      await leaf.setViewState({ type: SBE_TASKS_VIEW_TYPE, active: true });
+    const existing = workspace.getLeavesOfType(SBE_TASKS_VIEW_TYPE)[0];
+    if (existing) {
+      workspace.revealLeaf(existing);
+      return;
     }
+    const leaf = workspace.getLeaf(false);
+    await leaf.setViewState({ type: SBE_TASKS_VIEW_TYPE, active: true });
     workspace.revealLeaf(leaf);
-    const view = leaf.view;
-    if (view instanceof TasksView) {
-      await view.onOpen();
-    }
   }
 }
