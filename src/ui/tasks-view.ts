@@ -110,8 +110,10 @@ export class TasksView extends ItemView {
     });
 
     const headerEl = container.createDiv({ cls: 'tn-task-header' });
-    const createBtn = headerEl.createEl('button', { text: '➕ Новая задача', cls: 'tn-task-btn' });
+    const createBtn = headerEl.createEl('button', { text: '➕ Добавить задачу', cls: 'tn-task-btn' });
     createBtn.addEventListener('click', () => this.showCreateForm());
+    const eventBtn = headerEl.createEl('button', { text: '📅 Добавить мероприятие', cls: 'tn-task-btn' });
+    eventBtn.addEventListener('click', () => this.showEventCreateForm());
 
     this.searchInput = container.createEl('input', { attr: { type: 'text', placeholder: '🔍 Поиск по задачам...' } });
     this.searchInput.addClass('tn-task-input');
@@ -973,6 +975,152 @@ export class TasksView extends ItemView {
     cancelBtn.addEventListener('click', () => {
       this.createViewActive = false;
       this.renderFromCache();
+    });
+  }
+
+  // --- Вкладка Создание мероприятия ---
+
+  showEventCreateForm(): void {
+    this.createViewActive = true;
+    this.detailViewActive = false;
+    this.renderEventCreateForm();
+  }
+
+  private renderEventCreateForm(): void {
+    const container = this.containerElContent;
+    container.empty();
+    this.createViewActive = true;
+
+    const backBtn = container.createEl('button', { text: '← Назад к списку', cls: 'tn-task-btn' });
+    backBtn.addEventListener('click', () => {
+      this.createViewActive = false;
+      this.renderFromCache();
+    });
+
+    container.createEl('h3', { text: 'Новое мероприятие' });
+
+    const eventsProjectId = this.plugin.settings.eventsProjectId;
+    const eventsBoardId = this.plugin.settings.eventsBoardId;
+
+    const columnsInfo = container.createDiv({ cls: 'tn-task-meta' });
+    const pTitle = this.plugin.tasksDb.getProjects().find(p => p.id === eventsProjectId)?.title || '—';
+    const bTitle = this.plugin.tasksDb.getBoards().find(b => b.id === eventsBoardId)?.title || '—';
+    columnsInfo.setText(`Проект: ${pTitle} · Доска: ${bTitle}`);
+
+    const columnLabel = container.createEl('label', { text: 'Направление мероприятия' });
+    const columnSelect = container.createEl('select');
+    columnSelect.addClass('tn-task-select');
+    let boardColumns = this.plugin.tasksDb.getColumns();
+    if (eventsBoardId) boardColumns = boardColumns.filter(c => c.boardId === eventsBoardId);
+    boardColumns.sort((a, b) => a.title.localeCompare(b.title));
+    for (const col of boardColumns) {
+      columnSelect.createEl('option', { value: col.id, text: col.title });
+    }
+
+    const fields: Array<{ label: string; key: string; type: string; placeholder?: string }> = [
+      { label: 'Название мероприятия', key: 'title', type: 'text', placeholder: 'Введите название' },
+      { label: 'Место проведения', key: 'place', type: 'text', placeholder: 'Адрес или место' },
+      { label: 'Целевая аудитория', key: 'targetAudience', type: 'text', placeholder: 'Кому предназначено' },
+      { label: 'Дата проведения', key: 'date', type: 'date' },
+      { label: 'Время начала', key: 'startTime', type: 'time' },
+      { label: 'Время окончания', key: 'endTime', type: 'time' },
+    ];
+
+    const inputs: Record<string, HTMLInputElement> = {};
+    for (const f of fields) {
+      const label = container.createEl('label', { text: f.label });
+      const input = container.createEl('input', { attr: { type: f.type, placeholder: f.placeholder || '' } });
+      input.addClass('tn-task-input');
+      inputs[f.key] = input;
+      if (f.key === 'date' && !input.value) {
+        input.value = new Date().toISOString().slice(0, 10);
+      }
+    }
+
+    const assigneeSelector = new AssigneeSelector(container, 'Ответственный', () => this.plugin.tasksDb.getUsers());
+
+    const additionalLabel = container.createEl('label', { text: 'Дополнительная информация и описание' });
+    const additionalTextarea = container.createEl('textarea', {
+      attr: { placeholder: 'Любая дополнительная информация о мероприятии', rows: '3' },
+    });
+    additionalTextarea.addClass('tn-task-textarea');
+
+    const btnRow = container.createDiv({ cls: 'tn-task-header' });
+
+    const submitBtn = btnRow.createEl('button', { text: 'Создать', cls: 'tn-task-btn' });
+    const cancelBtn = btnRow.createEl('button', { text: 'Отмена', cls: 'tn-task-btn' });
+    cancelBtn.addEventListener('click', () => {
+      this.createViewActive = false;
+      this.renderFromCache();
+    });
+
+    submitBtn.addEventListener('click', async () => {
+      const title = inputs.title.value.trim();
+      if (!title) {
+        new Notice('Задачи: Название мероприятия обязательно');
+        return;
+      }
+      const place = inputs.place.value.trim();
+      const targetAudience = inputs.targetAudience.value.trim();
+      const dateVal = inputs.date.value;
+      const startTime = inputs.startTime.value;
+      const endTime = inputs.endTime.value;
+      const additionalInfo = additionalTextarea.value.trim();
+      if (!dateVal) {
+        new Notice('Задачи: Дата проведения обязательна');
+        return;
+      }
+
+      submitBtn.setText('⏳');
+      submitBtn.setAttr('disabled', 'true');
+
+      const eventData: Record<string, unknown> = {
+        title,
+        place,
+        targetAudience,
+        startTime,
+        endTime,
+        additionalInfo,
+      };
+      const description = JSON.stringify(eventData, null, 2);
+      const assignedIds = assigneeSelector.getSelectedIds();
+      const deadlineMs = new Date(`${dateVal}T${endTime || '23:59'}`).getTime();
+      const selectedColumnId = columnSelect.value;
+
+      const payload: CreateTaskPayload = {
+        title,
+        description,
+        columnId: selectedColumnId || undefined,
+        assigned: assignedIds.length > 0 ? assignedIds : undefined,
+        deadline: { deadline: deadlineMs, withTime: true },
+      };
+
+      try {
+        await this.plugin.yougile.createTask(payload);
+        new Notice('Задачи: Мероприятие создано');
+        this.createViewActive = false;
+        void this.syncAndRender();
+      } catch (e: unknown) {
+        if (isNetworkError(e)) {
+          this.plugin.tasksDb.addToOfflineQueue({
+            type: 'create-task',
+            payload: {
+              title,
+              description,
+              columnId: selectedColumnId || undefined,
+              assigned: assignedIds.length > 0 ? assignedIds : undefined,
+              deadline: { deadline: deadlineMs, withTime: true },
+            },
+          });
+          new Notice('Задачи: Нет соединения. Мероприятие будет создано позже.');
+          this.createViewActive = false;
+          this.renderFromCache();
+        } else {
+          new Notice(`Задачи: Ошибка — ${errorMessage(e)}`);
+          submitBtn.setText('Создать');
+          submitBtn.removeAttribute('disabled');
+        }
+      }
     });
   }
 

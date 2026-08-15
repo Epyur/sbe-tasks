@@ -8,10 +8,14 @@ import type { SbeTasksApi } from '../../sbe-core/src/types';
 
 export interface SbeTasksSettings {
   selectedProjectId: string;
+  eventsProjectId: string;
+  eventsBoardId: string;
 }
 
 const DEFAULT_SETTINGS: SbeTasksSettings = {
   selectedProjectId: '',
+  eventsProjectId: '',
+  eventsBoardId: '',
 };
 
 export default class SbeTasksPlugin extends Plugin {
