@@ -22,13 +22,17 @@ export const SBE_TASKS_VIEW_TYPE = 'sbe-tasks-view';
 
 export class TasksView extends ItemView {
   plugin: SbeTasksPlugin;
+  private rootEl!: HTMLElement;
+  private navEl!: HTMLElement;
+  private crumbEl!: HTMLElement;
+  private collapseLabel!: HTMLElement;
+  private collapsed = false;
   private containerElContent!: HTMLElement;
   private selectProject!: HTMLSelectElement;
   private selectBoard!: HTMLSelectElement;
   private selectColumn!: HTMLSelectElement;
   private selectAssignee!: HTMLSelectElement;
   private selectStatus!: HTMLSelectElement;
-  private tabButtons: HTMLElement[] = [];
   private currentTab: 'tasks' | 'chats' = 'tasks';
 
   private detailViewActive = false;
@@ -48,7 +52,7 @@ export class TasksView extends ItemView {
   }
 
   getDisplayText(): string {
-    return 'Задачи';
+    return 'LogicTEAM.Задачи';
   }
 
   getIcon(): string {
@@ -58,17 +62,93 @@ export class TasksView extends ItemView {
   async onOpen(): Promise<void> {
     const container = this.contentEl;
     container.addClass('tn-task-container');
+    this.rootEl = container.createDiv({ cls: 'tn-task-app' });
 
-    const headerEl2 = container.createDiv({ cls: 'tn-task-header' });
-    const tasksTab = headerEl2.createEl('button', { text: '📋 Задачи', cls: 'tn-task-btn' });
-    const chatsTab = headerEl2.createEl('button', { text: '💬 Чаты', cls: 'tn-task-btn' });
-    this.tabButtons = [tasksTab, chatsTab];
-    tasksTab.addEventListener('click', () => this.switchTab('tasks'));
-    chatsTab.addEventListener('click', () => this.switchTab('chats'));
+    this.buildShell();
+    this.populateFilters();
+    this.renderFromCache();
 
-    const filtersEl = container.createDiv({ cls: 'tn-task-header' });
-    this.selectProject = filtersEl.createEl('select');
-    this.selectProject.addClass('dropdown');
+    this.registerInterval(window.setInterval(() => this.syncAndRender(), 5 * 60 * 1000));
+  }
+
+  // ---- Каркас ----
+
+  private buildShell(): void {
+    const topbar = this.rootEl.createDiv({ cls: 'tn-task-topbar' });
+    topbar.createDiv({ cls: 'tn-task-module-title', text: 'LogicTEAM.Задачи' });
+    this.crumbEl = topbar.createDiv({ cls: 'tn-task-crumb', text: 'Задачи' });
+    topbar.createDiv({ cls: 'tn-task-spacer' });
+    const eventBtn = topbar.createEl('button', { text: '📅 Мероприятие', cls: 'tn-btn tn-btn-ghost' });
+    eventBtn.addEventListener('click', () => this.showEventCreateForm());
+    const createBtn = topbar.createEl('button', { text: '＋ Добавить задачу', cls: 'tn-task-create' });
+    createBtn.addEventListener('click', () => this.showCreateForm());
+
+    const main = this.rootEl.createDiv({ cls: 'tn-task-main' });
+    const sidebar = main.createDiv({ cls: 'tn-task-sidebar' });
+
+    const collapseBtn = sidebar.createDiv({ cls: 'tn-task-collapse' });
+    collapseBtn.createSpan({ text: '▧' });
+    this.collapseLabel = collapseBtn.createSpan({ cls: 'tn-task-collapse-lbl', text: 'Свернуть' });
+    collapseBtn.addEventListener('click', () => this.toggleCollapse());
+
+    this.navEl = sidebar.createDiv({ cls: 'tn-task-nav' });
+    this.buildNav();
+
+    const actions = sidebar.createDiv({ cls: 'tn-task-sidebar-actions' });
+    const syncBtn = actions.createEl('button', { cls: 'tn-task-nav-action' });
+    syncBtn.createSpan({ text: '🔄' });
+    syncBtn.createSpan({ cls: 'tn-task-nav-lbl', text: 'Синхронизация' });
+    syncBtn.addEventListener('click', () => this.syncAndRender());
+
+    const content = main.createDiv({ cls: 'tn-task-content' });
+    this.searchInput = content.createEl('input', {
+      attr: { type: 'text', placeholder: '🔍 Поиск по задачам...' },
+      cls: 'tn-task-input tn-task-mb-8',
+    });
+    this.searchInput.addEventListener('input', () => this.renderFromCache());
+    this.containerElContent = content.createDiv();
+  }
+
+  private buildNav(): void {
+    this.navEl.empty();
+
+    const tasksGroup = this.navEl.createEl('button', { cls: 'tn-task-grp' });
+    tasksGroup.createSpan({ cls: 'tn-task-grp-ico', text: '📋' });
+    tasksGroup.createSpan({ cls: 'tn-task-grp-lbl', text: 'Задачи' });
+    tasksGroup.createSpan({ cls: 'tn-task-grp-chev', text: '▶' });
+    tasksGroup.addEventListener('click', () => tasksGroup.classList.toggle('open'));
+    const tasksSubmenu = this.navEl.createDiv({ cls: 'tn-task-submenu' });
+    const tabs: Array<{ id: 'tasks' | 'chats'; label: string }> = [
+      { id: 'tasks', label: 'Все задачи' },
+      { id: 'chats', label: 'Чаты' },
+    ];
+    for (const t of tabs) {
+      const item = tasksSubmenu.createEl('a', { cls: 'tn-task-nav-item', attr: { href: '#' } });
+      item.createSpan({ cls: 'tn-task-nav-lbl', text: t.label });
+      item.dataset.key = t.id;
+      item.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        this.switchTab(t.id);
+      });
+    }
+    tasksGroup.classList.add('open', 'active');
+
+    const filterGroup = this.navEl.createEl('button', { cls: 'tn-task-grp' });
+    filterGroup.createSpan({ cls: 'tn-task-grp-ico', text: '🔍' });
+    filterGroup.createSpan({ cls: 'tn-task-grp-lbl', text: 'Фильтры' });
+    filterGroup.createSpan({ cls: 'tn-task-grp-chev', text: '▶' });
+    filterGroup.addEventListener('click', () => filterGroup.classList.toggle('open'));
+    const filtersEl = this.navEl.createDiv({ cls: 'tn-task-submenu tn-task-filters-nav' });
+    filterGroup.classList.add('open');
+    this.buildFilterControls(filtersEl);
+
+    this.syncNavActive();
+  }
+
+  /** Фильтры списка задач — перенесены из горизонтальной строки над списком в сайдбар. */
+  private buildFilterControls(container: HTMLElement): void {
+    container.createDiv({ cls: 'tn-task-filter-label', text: 'Проект' });
+    this.selectProject = container.createEl('select', { cls: 'dropdown tn-task-filter-select' });
     this.selectProject.addEventListener('change', () => {
       this.plugin.settings.selectedProjectId = this.selectProject.value;
       void this.plugin.saveSettings();
@@ -76,66 +156,57 @@ export class TasksView extends ItemView {
       this.renderFromCache();
     });
 
-    this.selectBoard = filtersEl.createEl('select');
-    this.selectBoard.addClass('dropdown');
+    container.createDiv({ cls: 'tn-task-filter-label', text: 'Доска' });
+    this.selectBoard = container.createEl('select', { cls: 'dropdown tn-task-filter-select' });
     this.selectBoard.addEventListener('change', () => {
       this.populateFilters();
       this.renderFromCache();
     });
 
-    this.selectColumn = filtersEl.createEl('select');
-    this.selectColumn.addClass('dropdown');
+    container.createDiv({ cls: 'tn-task-filter-label', text: 'Колонка' });
+    this.selectColumn = container.createEl('select', { cls: 'dropdown tn-task-filter-select' });
     this.selectColumn.addEventListener('change', () => this.renderFromCache());
 
-    this.selectAssignee = filtersEl.createEl('select');
-    this.selectAssignee.addClass('dropdown');
+    container.createDiv({ cls: 'tn-task-filter-label', text: 'Исполнитель' });
+    this.selectAssignee = container.createEl('select', { cls: 'dropdown tn-task-filter-select' });
     this.selectAssignee.addEventListener('change', () => this.renderFromCache());
 
-    this.selectStatus = filtersEl.createEl('select');
-    this.selectStatus.addClass('dropdown');
+    container.createDiv({ cls: 'tn-task-filter-label', text: 'Статус' });
+    this.selectStatus = container.createEl('select', { cls: 'dropdown tn-task-filter-select' });
     this.selectStatus.createEl('option', { value: 'active', text: 'Только активные' });
     this.selectStatus.createEl('option', { value: 'all', text: 'Все' });
     this.selectStatus.createEl('option', { value: 'completed', text: 'Только завершённые' });
     this.selectStatus.value = 'active';
     this.selectStatus.addEventListener('change', () => this.renderFromCache());
 
-    this.noDeadlineCb = filtersEl.createEl('input', { attr: { type: 'checkbox' } });
-    this.noDeadlineCb.addClass('tn-task-cb');
-    const noDeadlineLabel = filtersEl.createEl('label', { cls: 'tn-task-no-deadline-filter' });
-    noDeadlineLabel.append(this.noDeadlineCb);
+    const noDeadlineLabel = container.createEl('label', { cls: 'tn-task-no-deadline-filter tn-task-sidebar-filter' });
+    this.noDeadlineCb = noDeadlineLabel.createEl('input', { attr: { type: 'checkbox' }, cls: 'tn-task-cb' });
     noDeadlineLabel.createSpan({ text: 'Задачи без дедлайна' });
     this.noDeadlineCb.addEventListener('change', () => {
       this.noDeadlineOnly = this.noDeadlineCb.checked;
       this.renderFromCache();
     });
+  }
 
-    const headerEl = container.createDiv({ cls: 'tn-task-header' });
-    const createBtn = headerEl.createEl('button', { text: '➕ Добавить задачу', cls: 'tn-task-btn' });
-    createBtn.addEventListener('click', () => this.showCreateForm());
-    const eventBtn = headerEl.createEl('button', { text: '📅 Добавить мероприятие', cls: 'tn-task-btn' });
-    eventBtn.addEventListener('click', () => this.showEventCreateForm());
+  private syncNavActive(): void {
+    this.navEl.querySelectorAll('.tn-task-nav-item').forEach((el) => {
+      const navEl = el as HTMLElement;
+      navEl.classList.toggle('active', navEl.dataset.key === this.currentTab);
+    });
+  }
 
-    this.searchInput = container.createEl('input', { attr: { type: 'text', placeholder: '🔍 Поиск по задачам...' } });
-    this.searchInput.addClass('tn-task-input');
-    this.searchInput.addClass('tn-task-mb-8');
-    this.searchInput.addEventListener('input', () => this.renderFromCache());
-
-    const refreshBtn = headerEl.createEl('button', { text: '🔄', cls: 'tn-task-btn' });
-    refreshBtn.addEventListener('click', () => this.syncAndRender());
-
-    this.containerElContent = container.createDiv();
-
-    this.populateFilters();
-    this.renderFromCache();
-
-    this.registerInterval(window.setInterval(() => this.syncAndRender(), 5 * 60 * 1000));
+  private toggleCollapse(): void {
+    this.collapsed = !this.collapsed;
+    this.rootEl.classList.toggle('collapsed', this.collapsed);
+    if (this.collapseLabel) {
+      this.collapseLabel.setText(this.collapsed ? 'Развернуть' : 'Свернуть');
+    }
   }
 
   private switchTab(tab: 'tasks' | 'chats'): void {
     this.currentTab = tab;
-    this.tabButtons.forEach((btn, i) => {
-      btn.style.fontWeight = i === (tab === 'tasks' ? 0 : 1) ? 'bold' : 'normal';
-    });
+    this.crumbEl.setText(tab === 'tasks' ? 'Задачи' : 'Чаты');
+    this.syncNavActive();
     this.detailViewActive = false;
     this.createViewActive = false;
     if (tab === 'tasks') {

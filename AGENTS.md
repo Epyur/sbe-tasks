@@ -11,8 +11,12 @@
   (`getService('sbe-yougile')` лениво; `isAvailable()` = опубликован + `getStatus().authenticated`).
 - `src/database/tasks-db.ts` — `TasksDatabase`: кэш + офлайн-очередь + `sync()`
   (порт `LocalDatabase` монолита; без LPI-исключения и backfill `completeAt`).
-- `src/ui/tasks-view.ts` — порт `ui/tasks-view.ts` монолита: вкладки «Задачи»/«Чаты»,
-  фильтры, дерево, детали с чатом, create/edit.
+- `src/ui/tasks-view.ts` — фасад «LogicTEAM.Задачи» (топбар + сайдбар + контент, как
+  sbe-mailer/sbe-documents): сайдбар — группа «Задачи» (пункты «Все задачи»/«Чаты», раньше —
+  вкладки-кнопки над контентом) и группа «Фильтры» (проект/доска/колонка/исполнитель/статус/
+  «без дедлайна», раньше — строка селектов над списком). Список задач — карточками
+  (`tn-task-card`, было уже до фасада) с деревом подзадач, детали с чатом, create/edit —
+  без изменений в логике.
 - `src/ui/assignee-selector.ts`, `src/ui/settings-tab.ts` — компонент исполнителей
   и настройки (`selectedProjectId`).
 - `src/styles.css` — классы `tn-task-*` (перенос `mailer-yougile-*`).
@@ -43,6 +47,30 @@
   пересборка `main.js`.
 
 ## История работ
+
+### 2026-08-19 — v0.1.8 (фасад «LogicTEAM.Задачи»)
+- `tasks-view.ts` переоформлен в фасад (топбар + сайдбар + контент), как у
+  sbe-mailer/sbe-documents/sbe-calendar/sbe-presentations: старые вкладки-кнопки
+  «📋 Задачи»/«💬 Чаты» (переключение через ручное изменение `style.fontWeight`) заменены
+  пунктами сайдбара с `active`-классом; строка фильтров (проект/доска/колонка/исполнитель/
+  статус/«без дедлайна») перенесена из горизонтального ряда над списком в группу «Фильтры»
+  сайдбара. Кнопки «➕ Добавить задачу»/«📅 Добавить мероприятие» — в топбаре. Кнопка
+  синхронизации — в нижней панели сайдбара.
+- Список задач уже был карточками (`tn-task-card`, с деревом подзадач) до этой правки —
+  не менялся. Детали задачи с чатом, create/edit форм, офлайн-очередь, вкладка «Чаты» —
+  логика не менялась, только контейнер рендера (`containerElContent`) теперь указывает на
+  контентную область фасада вместо корня вьюхи.
+- Версия 0.1.7 → **0.1.8** (manifest + package.json). `npx tsc --noEmit` EXIT=0;
+  `npm run build` OK.
+
+### 2026-08-18 — v0.1.7 (пересборка за sbe-core: sbe-lims в service-map)
+- `sbe-core`: добавлены `SbeLimsApi` и `'sbe-lims'` в `SbeServiceMap` — пересборка `main.js`,
+  исходники плагина не менялись. Версия 0.1.6 → **0.1.7** (manifest + package.json).
+- `npx tsc --noEmit` EXIT=0; `npm run build` OK. Коммит и пуш сделаны.
+
+### 2026-08-18 — v0.1.6 (пересборка за sbe-core: SbeEknApi)
+- `sbe-core`: добавлены `SbeEknApi` и `'sbe-ekn'` в `SbeServiceMap` — пересборка `main.js`,
+  исходники не менялись. Версия 0.1.5 → **0.1.6** (manifest + package.json).
 
 ### 2026-08-17 — v0.1.5 (источник реестра)
 - `sbe-core`: `DEFAULT_REGISTRY_URL` → `https://epyur.fvds.ru/registry.json`

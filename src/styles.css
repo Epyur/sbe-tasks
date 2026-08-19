@@ -2,7 +2,271 @@
  * Классы tn-task-* — перенос mailer-yougile-* из монолита yougile-tntn. */
 
 .tn-task-container {
-  padding: 12px;
+  padding: 0;
+  height: 100%;
+}
+
+/* ================= Фасад (каркас: шапка + сайдбар + контент) ================= */
+
+.tn-task-app {
+  --accent: #E11B17;
+  --accent-soft: #FDECEB;
+  --bg: #F3F5F7;
+  --surface: #FFFFFF;
+  --border: #E7EAEF;
+  --muted: #667387;
+  --active-nav: #F9F9FA;
+  --radius: 16px;
+  --radius-sm: 10px;
+
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 24px;
+  background: var(--bg);
+  color: #171725;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
+.tn-task-topbar {
+  height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.tn-task-module-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #171725;
+  white-space: nowrap;
+}
+
+.tn-task-crumb {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tn-task-spacer {
+  flex: 1;
+}
+
+.tn-task-create {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 15px;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.tn-task-create:hover {
+  background: var(--accent-soft);
+}
+
+.tn-task-main {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  min-height: 0;
+}
+
+.tn-task-sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width .2s, min-width .2s;
+}
+
+.tn-task-app.collapsed .tn-task-sidebar {
+  width: 64px;
+  min-width: 64px;
+}
+
+.tn-task-collapse {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  color: var(--muted);
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.tn-task-collapse:hover {
+  color: #171725;
+}
+
+.tn-task-app.collapsed .tn-task-collapse .tn-task-collapse-lbl {
+  display: none;
+}
+
+.tn-task-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 10px 16px;
+}
+
+.tn-task-grp {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  color: #171725;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.tn-task-grp:hover {
+  background: var(--bg);
+}
+
+.tn-task-grp .tn-task-grp-chev {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10px;
+  transition: transform .15s;
+}
+
+.tn-task-grp.open .tn-task-grp-chev {
+  transform: rotate(90deg);
+}
+
+.tn-task-grp.open {
+  color: var(--accent);
+}
+
+.tn-task-submenu {
+  display: block;
+  padding-left: 14px;
+}
+
+.tn-task-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  color: #171725;
+  text-decoration: none;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.tn-task-nav-item:hover {
+  background: var(--bg);
+}
+
+.tn-task-nav-item.active {
+  background: var(--active-nav);
+  color: #171725;
+  font-weight: 600;
+}
+
+.tn-task-app.collapsed .tn-task-nav-lbl,
+.tn-task-app.collapsed .tn-task-grp .tn-task-grp-lbl,
+.tn-task-app.collapsed .tn-task-nav-item .tn-task-nav-lbl,
+.tn-task-app.collapsed .tn-task-submenu,
+.tn-task-app.collapsed .tn-task-grp .tn-task-grp-chev {
+  display: none;
+}
+
+.tn-task-app.collapsed .tn-task-grp,
+.tn-task-app.collapsed .tn-task-nav-item {
+  padding: 9px;
+  justify-content: center;
+}
+
+.tn-task-sidebar-actions {
+  border-top: 1px solid var(--border);
+  padding: 6px 10px 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tn-task-nav-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tn-task-nav-action:hover {
+  background: var(--bg);
+  color: #171725;
+}
+
+.tn-task-app.collapsed .tn-task-nav-action .tn-task-nav-lbl {
+  display: none;
+}
+
+.tn-task-app.collapsed .tn-task-nav-action {
+  padding: 9px;
+  justify-content: center;
+}
+
+.tn-task-content {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 24px;
+  overflow-y: auto;
+}
+
+/* ================= Фильтры в сайдбаре ================= */
+
+.tn-task-filters-nav {
+  padding-right: 14px;
+  box-sizing: border-box;
+}
+
+.tn-task-filter-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 10px 0 4px;
+}
+
+.tn-task-filter-select {
+  margin: 0 0 4px;
+}
+
+.tn-task-filters-nav .tn-task-no-deadline-filter.tn-task-sidebar-filter {
+  margin: 8px 0 0;
 }
 
 .tn-task-header {
