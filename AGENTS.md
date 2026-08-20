@@ -48,6 +48,10 @@
 
 ## История работ
 
+### 2026-08-20 — v0.1.9 (пересборка за sbe-core: SbeContactsApi)
+- `sbe-core`: добавлены `SbeContactsApi` и `'sbe-contacts'` в `SbeServiceMap` — пересборка `main.js`, исходники плагина не менялись. Версия 0.1.8 → **0.1.9** (manifest + package.json).
+- `npx tsc --noEmit` EXIT=0; `npm run build` OK.
+
 ### 2026-08-19 — v0.1.8 (фасад «LogicTEAM.Задачи»)
 - `tasks-view.ts` переоформлен в фасад (топбар + сайдбар + контент), как у
   sbe-mailer/sbe-documents/sbe-calendar/sbe-presentations: старые вкладки-кнопки
